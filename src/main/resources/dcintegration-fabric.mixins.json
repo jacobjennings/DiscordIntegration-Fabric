@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "de.erdbeerbaerlp.dcintegration.fabric.mixin",
   "plugin": "de.erdbeerbaerlp.dcintegration.fabric.mixin.MixinConfig",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_25",
   "server": [
     "AdvancementMixin",
     "NetworkHandlerMixin",
@@ -11,9 +11,7 @@
     "PlayerManagerMixin",
     "ChatMixin",
     "CommandManagerMixin",
-    "MixinMinecraftServer",
-    "StyledChatMixin",
-    "ItemEnchantmentsComponentMixin"
+    "MixinMinecraftServer"
   ],
   "injectors": {
     "defaultRequire": 1

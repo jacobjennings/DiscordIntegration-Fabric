@@ -8,11 +8,11 @@ import de.erdbeerbaerlp.dcintegration.common.util.DiscordMessage;
 import de.erdbeerbaerlp.dcintegration.common.util.TextColors;
 import de.erdbeerbaerlp.dcintegration.fabric.util.FabricMessageUtils;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.minecraft.advancement.Advancement;
-import net.minecraft.advancement.AdvancementEntry;
-import net.minecraft.advancement.PlayerAdvancementTracker;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.server.PlayerAdvancements;
+import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,73 +25,73 @@ import java.util.UUID;
 
 import static de.erdbeerbaerlp.dcintegration.common.DiscordIntegration.INSTANCE;
 
-@Mixin(PlayerAdvancementTracker.class)
+@Mixin(PlayerAdvancements.class)
 public class AdvancementMixin {
     @Shadow
-    ServerPlayerEntity owner;
+    private ServerPlayer player;
 
-    @Inject(method = "grantCriterion", at = @At(value = "INVOKE", target = "Lnet/minecraft/advancement/PlayerAdvancementTracker;onStatusUpdate(Lnet/minecraft/advancement/AdvancementEntry;)V"))
-    public void advancement(AdvancementEntry advancementEntry, String criterionName, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "award", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/PlayerAdvancements;unregisterListeners(Lnet/minecraft/advancements/AdvancementHolder;)V"))
+    public void advancement(AdvancementHolder advancementHolder, String criterionName, CallbackInfoReturnable<Boolean> cir) {
         if (DiscordIntegration.INSTANCE == null) return;
-        final Advancement advancement = advancementEntry.value();
-        if (LinkManager.isPlayerLinked(owner.getUuid()) && LinkManager.getLink(null, owner.getUuid()).settings.hideFromDiscord)
+        final Advancement advancement = advancementHolder.value();
+        if (LinkManager.isPlayerLinked(player.getUUID()) && LinkManager.getLink(null, player.getUUID()).settings.hideFromDiscord)
             return;
-        if (advancement != null && advancement.display().isPresent() && advancement.display().get().shouldAnnounceToChat()) {
+        if (advancement != null && advancement.display().isPresent() && advancement.display().get().shouldAnnounceChat()) {
 
             if (!Localization.instance().advancementMessage.isBlank()) {
                 if (Configuration.instance().embedMode.enabled && Configuration.instance().embedMode.advancementMessage.asEmbed) {
-                    final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", owner.getUuid().toString()).replace("%uuid_dashless%", owner.getUuid().toString().replace("-", "")).replace("%name%", owner.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
+                    final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", player.getUUID().toString()).replace("%uuid_dashless%", player.getUUID().toString().replace("-", "")).replace("%name%", player.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
                     if (!Configuration.instance().embedMode.advancementMessage.customJSON.isBlank()) {
                         final EmbedBuilder b = Configuration.instance().embedMode.advancementMessage.toEmbedJson(Configuration.instance().embedMode.advancementMessage.customJSON
-                                .replace("%uuid%", owner.getUuid().toString())
-                                .replace("%uuid_dashless%", owner.getUuid().toString().replace("-", ""))
-                                .replace("%name%", FabricMessageUtils.formatPlayerName(owner))
+                                .replace("%uuid%", player.getUUID().toString())
+                                .replace("%uuid_dashless%", player.getUUID().toString().replace("-", ""))
+                                .replace("%name%", FabricMessageUtils.formatPlayerName(player))
                                 .replace("%randomUUID%", UUID.randomUUID().toString())
                                 .replace("%avatarURL%", avatarURL)
-                                .replace("%advName%", Formatting.strip(advancement.display().get().getTitle().getString()))
-                                .replace("%advDesc%", Formatting.strip(advancement.display().get().getDescription().getString()))
-                                .replace("%advNameURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
-                                .replace("%advDescURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
+                                .replace("%advName%", ChatFormatting.stripFormatting(advancement.display().get().getTitle().getString()))
+                                .replace("%advDesc%", ChatFormatting.stripFormatting(advancement.display().get().getDescription().getString()))
+                                .replace("%advNameURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
+                                .replace("%advDescURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
                                 .replace("%avatarURL%", avatarURL)
-                                .replace("%playerColor%", "" + TextColors.generateFromUUID(owner.getUuid()).getRGB())
+                                .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUUID()).getRGB())
                         );
                         DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
                     } else {
                         EmbedBuilder b = Configuration.instance().embedMode.advancementMessage.toEmbed();
-                        b = b.setAuthor(FabricMessageUtils.formatPlayerName(owner), null, avatarURL)
+                        b = b.setAuthor(FabricMessageUtils.formatPlayerName(player), null, avatarURL)
                                 .setDescription(Localization.instance().advancementMessage.replace("%player%",
-                                                Formatting.strip(FabricMessageUtils.formatPlayerName(owner)))
+                                                ChatFormatting.stripFormatting(FabricMessageUtils.formatPlayerName(player)))
                                         .replace("%advName%",
-                                                Formatting.strip(advancement
+                                                ChatFormatting.stripFormatting(advancement
                                                         .display().get()
                                                         .getTitle()
                                                         .getString()))
                                         .replace("%advDesc%",
-                                                Formatting.strip(advancement
+                                                ChatFormatting.stripFormatting(advancement
                                                         .display().get()
                                                         .getDescription()
                                                         .getString()))
                                         .replace("\\n", "\n")
-                                        .replace("%advNameURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
-                                        .replace("%advDescURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
+                                        .replace("%advNameURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
+                                        .replace("%advDescURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
                                 );
                         DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
                     }
                 } else
                     DiscordIntegration.INSTANCE.sendMessage(Localization.instance().advancementMessage.replace("%player%",
-                                    Formatting.strip(FabricMessageUtils.formatPlayerName(owner)))
+                                    ChatFormatting.stripFormatting(FabricMessageUtils.formatPlayerName(player)))
                             .replace("%advName%",
-                                    Formatting.strip(advancement
+                                    ChatFormatting.stripFormatting(advancement
                                             .display().get()
                                             .getTitle()
                                             .getString()))
                             .replace("%advDesc%",
-                                    Formatting.strip(advancement
+                                    ChatFormatting.stripFormatting(advancement
                                             .display().get()
                                             .getDescription()
                                             .getString()))
-                            .replace("%advNameURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
-                            .replace("%advDescURL%", URLEncoder.encode(Formatting.strip(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
+                            .replace("%advNameURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getTitle().getString()), StandardCharsets.UTF_8))
+                            .replace("%advDescURL%", URLEncoder.encode(ChatFormatting.stripFormatting(advancement.display().get().getDescription().getString()), StandardCharsets.UTF_8))
                             .replace("\\n", "\n"),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
             }
         }

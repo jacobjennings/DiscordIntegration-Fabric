@@ -1,25 +1,24 @@
 package de.erdbeerbaerlp.dcintegration.fabric.mixin;
 
 import de.erdbeerbaerlp.dcintegration.fabric.DiscordIntegrationMod;
-import net.minecraft.network.message.MessageType;
-import net.minecraft.network.message.SignedMessage;
-import net.minecraft.server.PlayerManager;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.network.chat.ChatType;
+import net.minecraft.network.chat.PlayerChatMessage;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.server.players.PlayerList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 
-@Mixin(value= ServerPlayNetworkHandler.class)
+@Mixin(value = ServerGamePacketListenerImpl.class)
 public class ChatMixin {
     /**
      * Handle chat messages
      */
-    @Redirect(method = "handleDecoratedMessage", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/PlayerManager;broadcast(Lnet/minecraft/network/message/SignedMessage;Lnet/minecraft/server/network/ServerPlayerEntity;Lnet/minecraft/network/message/MessageType$Parameters;)V"))
-    public void chatMessage(PlayerManager instance, SignedMessage signedMessage, ServerPlayerEntity sender, MessageType.Parameters params) {
+    @Redirect(method = "broadcastChatMessage", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/players/PlayerList;broadcastChatMessage(Lnet/minecraft/network/chat/PlayerChatMessage;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/network/chat/ChatType$Bound;)V"))
+    public void chatMessage(PlayerList instance, PlayerChatMessage signedMessage, ServerPlayer sender, ChatType.Bound params) {
         signedMessage = DiscordIntegrationMod.handleChatMessage(signedMessage, sender);
-        instance.broadcast(signedMessage, sender, params);
-
+        instance.broadcastChatMessage(signedMessage, sender, params);
     }
 }

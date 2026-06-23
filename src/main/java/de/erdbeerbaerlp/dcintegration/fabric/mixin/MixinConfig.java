@@ -1,6 +1,5 @@
 package de.erdbeerbaerlp.dcintegration.fabric.mixin;
 
-import de.erdbeerbaerlp.dcintegration.fabric.util.CompatibilityUtils;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -16,8 +15,10 @@ public class MixinConfig implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
-        boolean styledChatLoaded = CompatibilityUtils.styledChatLoaded();
-        conditionalMixins.put("de.erdbeerbaerlp.dcintegration.fabric.mixin.ChatMixin", !styledChatLoaded);
+        // 26.1 port: the StyledChat compatibility mixin was removed because its hook
+        // (StyledChatUtils#formatMessage) no longer exists in styled-chat 2.12. ChatMixin therefore
+        // now always applies so vanilla chat is still forwarded; live styled-chat integration needs
+        // to be re-implemented against styled-chat 2.12's new message flow.
     }
 
     @Override

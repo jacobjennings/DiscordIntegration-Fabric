@@ -10,9 +10,10 @@ import de.erdbeerbaerlp.dcintegration.common.util.TextColors;
 import de.erdbeerbaerlp.dcintegration.fabric.DiscordIntegrationMod;
 import de.erdbeerbaerlp.dcintegration.fabric.util.FabricMessageUtils;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.network.DisconnectionDetails;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,38 +24,38 @@ import java.util.UUID;
 
 import static de.erdbeerbaerlp.dcintegration.common.DiscordIntegration.INSTANCE;
 
-@Mixin(value = ServerPlayNetworkHandler.class)
+@Mixin(value = ServerGamePacketListenerImpl.class)
 public class NetworkHandlerMixin {
     @Shadow
-    public ServerPlayerEntity player;
+    public ServerPlayer player;
 
     /**
      * Handle possible timeout
      */
-    @Inject(method = "onDisconnected", at = @At("HEAD"))
-    private void onDisconnect(final Text textComponent, CallbackInfo ci) {
-        if (textComponent.equals(Text.translatable("disconnect.timeout")))
-            DiscordIntegrationMod.timeouts.add(this.player.getUuid());
+    @Inject(method = "onDisconnect", at = @At("HEAD"))
+    private void onDisconnect(final DisconnectionDetails details, CallbackInfo ci) {
+        if (details.reason().equals(Component.translatable("disconnect.timeout")))
+            DiscordIntegrationMod.timeouts.add(this.player.getUUID());
     }
 
-    @Inject(at = @At(value = "HEAD"), method = "onDisconnected")
-    private void onPlayerLeave(Text reason, CallbackInfo info) {
+    @Inject(at = @At(value = "HEAD"), method = "onDisconnect")
+    private void onPlayerLeave(DisconnectionDetails reason, CallbackInfo info) {
         if (DiscordIntegrationMod.stopped) return; //Try to fix player leave messages after stop!
-        if (LinkManager.isPlayerLinked(player.getUuid()) && LinkManager.getLink(null, player.getUuid()).settings.hideFromDiscord)
+        if (LinkManager.isPlayerLinked(player.getUUID()) && LinkManager.getLink(null, player.getUUID()).settings.hideFromDiscord)
             return;
-        INSTANCE.callEventC((a)->a.onPlayerLeave(player.getUuid()));
-        final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", player.getUuid().toString()).replace("%uuid_dashless%", player.getUuid().toString().replace("-", "")).replace("%name%", player.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
-        if (DiscordIntegration.INSTANCE != null && !DiscordIntegrationMod.timeouts.contains(player.getUuid())) {
+        INSTANCE.callEventC((a)->a.onPlayerLeave(player.getUUID()));
+        final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", player.getUUID().toString()).replace("%uuid_dashless%", player.getUUID().toString().replace("-", "")).replace("%name%", player.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
+        if (DiscordIntegration.INSTANCE != null && !DiscordIntegrationMod.timeouts.contains(player.getUUID())) {
             if (!Localization.instance().playerLeave.isBlank()) {
                 if (Configuration.instance().embedMode.enabled && Configuration.instance().embedMode.playerLeaveMessages.asEmbed) {
                     if (!Configuration.instance().embedMode.playerLeaveMessages.customJSON.isBlank()) {
                         final EmbedBuilder b = Configuration.instance().embedMode.playerLeaveMessages.toEmbedJson(Configuration.instance().embedMode.playerLeaveMessages.customJSON
-                                .replace("%uuid%", player.getUuid().toString())
-                                .replace("%uuid_dashless%", player.getUuid().toString().replace("-", ""))
+                                .replace("%uuid%", player.getUUID().toString())
+                                .replace("%uuid_dashless%", player.getUUID().toString().replace("-", ""))
                                 .replace("%name%", FabricMessageUtils.formatPlayerName(player))
                                 .replace("%randomUUID%", UUID.randomUUID().toString())
                                 .replace("%avatarURL%", avatarURL)
-                                .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUuid()).getRGB())
+                                .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUUID()).getRGB())
                         );
                         DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
                     } else {
@@ -65,7 +66,7 @@ public class NetworkHandlerMixin {
                 } else
                     DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerLeave.replace("%player%", FabricMessageUtils.formatPlayerName(player)),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
             }
-        } else if (DiscordIntegration.INSTANCE != null && DiscordIntegrationMod.timeouts.contains(player.getUuid())) {
+        } else if (DiscordIntegration.INSTANCE != null && DiscordIntegrationMod.timeouts.contains(player.getUUID())) {
             if (!Localization.instance().playerTimeout.isBlank()) {
                 if (Configuration.instance().embedMode.enabled && Configuration.instance().embedMode.playerLeaveMessages.asEmbed) {
                     final EmbedBuilder b = Configuration.instance().embedMode.playerLeaveMessages.toEmbed()
@@ -75,7 +76,7 @@ public class NetworkHandlerMixin {
                 } else
                     DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerTimeout.replace("%player%", FabricMessageUtils.formatPlayerName(player)),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
             }
-            DiscordIntegrationMod.timeouts.remove(player.getUuid());
+            DiscordIntegrationMod.timeouts.remove(player.getUUID());
         }
     }
 }

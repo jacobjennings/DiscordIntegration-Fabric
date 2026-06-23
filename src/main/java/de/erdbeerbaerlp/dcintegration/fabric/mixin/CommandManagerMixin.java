@@ -11,13 +11,16 @@ import de.erdbeerbaerlp.dcintegration.common.storage.Localization;
 import de.erdbeerbaerlp.dcintegration.common.util.DiscordMessage;
 import de.erdbeerbaerlp.dcintegration.common.util.MessageUtils;
 import de.erdbeerbaerlp.dcintegration.common.util.MinecraftPermission;
+import de.erdbeerbaerlp.dcintegration.fabric.util.FabricMessageUtils;
 import de.erdbeerbaerlp.dcintegration.fabric.util.FabricServerInterface;
-import net.minecraft.entity.Entity;
-import net.minecraft.registry.BuiltinRegistries;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.world.entity.Entity;
 import org.apache.commons.lang3.ArrayUtils;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,13 +30,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
-@Mixin(CommandManager.class)
+@Mixin(Commands.class)
 public class CommandManagerMixin {
 
-    @Inject(method = "execute", cancellable = true, at = @At("HEAD"))
-    public void execute(ParseResults<ServerCommandSource> parseResults, String command, CallbackInfo ci) {
-        final ServerCommandSource source = parseResults.getContext().getSource();
-        String name = source.getName();
+    @Inject(method = "performCommand", cancellable = true, at = @At("HEAD"))
+    public void execute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
+        final CommandSourceStack source = parseResults.getContext().getSource();
+        String name = source.getTextName();
         command = command.replaceFirst(Pattern.quote("/"), "");
         if (DiscordIntegration.INSTANCE != null) {
             if (!Configuration.instance().commandLog.channelID.equals("0")) {
@@ -62,7 +65,7 @@ public class CommandManagerMixin {
                 }
                 final Entity sourceEntity = source.getEntity();
 
-                DiscordIntegration.INSTANCE.sendMessage(name, sourceEntity != null ? sourceEntity.getUuid().toString() : "0000000", new DiscordMessage(null, msg, !raw), DiscordIntegration.INSTANCE.getChannel(Configuration.instance().advanced.chatOutputChannelID));
+                DiscordIntegration.INSTANCE.sendMessage(name, sourceEntity != null ? sourceEntity.getUUID().toString() : "0000000", new DiscordMessage(null, msg, !raw), DiscordIntegration.INSTANCE.getChannel(Configuration.instance().advanced.chatOutputChannelID));
             }
 
             if (command.startsWith("discord ") || command.startsWith("dc ")) {
@@ -73,51 +76,51 @@ public class CommandManagerMixin {
                         switch (mcSubCommand.getType()) {
                             case CONSOLE_ONLY:
                                 try {
-                                    source.getPlayerOrThrow();
-                                    source.sendError(Text.literal(Localization.instance().commands.consoleOnly));
+                                    source.getPlayerOrException();
+                                    source.sendFailure(Component.literal(Localization.instance().commands.consoleOnly));
                                 } catch (CommandSyntaxException e) {
                                     final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, null));
-                                    source.sendFeedback(() -> Text.Serialization.fromJson(txt, BuiltinRegistries.createWrapperLookup()), false);
+                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
                                 }
                                 break;
                             case PLAYER_ONLY:
                                 try {
-                                    final ServerPlayerEntity player = source.getPlayerOrThrow();
+                                    final ServerPlayer player = source.getPlayerOrException();
                                     if (!mcSubCommand.needsOP() && ((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND, MinecraftPermission.USER)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, source.getWorld().getRegistryManager()), false);
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.getLevel().registryAccess()), false);
                                     } else if (((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND_ADMIN)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, source.getWorld().getRegistryManager()), false);
-                                    } else if (source.hasPermissionLevel(4)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, source.getWorld().getRegistryManager()), false);
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.getLevel().registryAccess()), false);
+                                    } else if (source.permissions() instanceof LevelBasedPermissionSet lps && lps.level() == PermissionLevel.OWNERS) {
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.getLevel().registryAccess()), false);
                                     } else {
-                                        source.sendError(Text.literal(Localization.instance().commands.noPermission));
+                                        source.sendFailure(Component.literal(Localization.instance().commands.noPermission));
                                     }
                                 } catch (CommandSyntaxException e) {
-                                    source.sendError(Text.literal(Localization.instance().commands.ingameOnly));
+                                    source.sendFailure(Component.literal(Localization.instance().commands.ingameOnly));
 
                                 }
                                 break;
                             case BOTH:
                                 try {
-                                    final ServerPlayerEntity player = source.getPlayerOrThrow();
+                                    final ServerPlayer player = source.getPlayerOrException();
                                     if (!mcSubCommand.needsOP() && ((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND, MinecraftPermission.USER)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, BuiltinRegistries.createWrapperLookup()), false);
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
                                     } else if (((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND_ADMIN)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, BuiltinRegistries.createWrapperLookup()), false);
-                                    } else if (source.hasPermissionLevel(4)) {
-                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUuid()));
-                                        source.sendFeedback(() -> Text.Serialization.fromJson(txt, BuiltinRegistries.createWrapperLookup()), false);
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                    } else if (source.permissions() instanceof LevelBasedPermissionSet lps && lps.level() == PermissionLevel.OWNERS) {
+                                        final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
                                     } else {
-                                        source.sendError(Text.literal(Localization.instance().commands.noPermission));
+                                        source.sendFailure(Component.literal(Localization.instance().commands.noPermission));
                                     }
                                 } catch (CommandSyntaxException e) {
                                     final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, null));
-                                    source.sendFeedback(() -> Text.Serialization.fromJson(txt, BuiltinRegistries.createWrapperLookup()), false);
+                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
                                 }
                                 break;
                         }

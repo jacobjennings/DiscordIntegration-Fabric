@@ -22,7 +22,7 @@ public class MixinMinecraftServer {
 
     }
 
-    @Inject(method = "shutdown", at = @At("HEAD"))
+    @Inject(method = "stopServer", at = @At("HEAD"))
     private void onShutdown(CallbackInfo info) {
         Metrics.capturedServer.compareAndSet((MinecraftServer) (Object) this, null);
     }

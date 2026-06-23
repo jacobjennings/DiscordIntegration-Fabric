@@ -26,14 +26,13 @@ import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.entities.emoji.EmojiUnion;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.requests.RestAction;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
-import net.minecraft.registry.BuiltinRegistries;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;
 import java.util.List;
@@ -51,37 +50,37 @@ public class FabricServerInterface implements McServerInterface{
 
     @Override
     public int getMaxPlayers() {
-        return server.getMaxPlayerCount();
+        return server.getPlayerList().getMaxPlayers();
     }
 
     @Override
     public int getOnlinePlayers() {
-        return server.getCurrentPlayerCount();
+        return server.getPlayerCount();
     }
 
     @Override
     public void sendIngameMessage(Component msg) {
-        final List<ServerPlayerEntity> l = server.getPlayerManager().getPlayerList();
+        final List<ServerPlayer> l = server.getPlayerList().getPlayers();
         try {
-            for (final ServerPlayerEntity p : l) {
+            for (final ServerPlayer p : l) {
                 if (!playerHasPermissions(p, MinecraftPermission.READ_MESSAGES, MinecraftPermission.USER))
                     return;
-                if (!DiscordIntegration.INSTANCE.ignoringPlayers.contains(p.getUuid()) && !(LinkManager.isPlayerLinked(p.getUuid()) && LinkManager.getLink(null, p.getUuid()).settings.ignoreDiscordChatIngame)) {
-                    final Map.Entry<Boolean, Component> ping = ComponentUtils.parsePing(msg, p.getUuid(), p.getName().getString());
+                if (!DiscordIntegration.INSTANCE.ignoringPlayers.contains(p.getUUID()) && !(LinkManager.isPlayerLinked(p.getUUID()) && LinkManager.getLink(null, p.getUUID()).settings.ignoreDiscordChatIngame)) {
+                    final Map.Entry<Boolean, Component> ping = ComponentUtils.parsePing(msg, p.getUUID(), p.getName().getString());
                     final String jsonComp = GsonComponentSerializer.gson().serialize(ping.getValue()).replace("\\\\n", "\n");
-                    final Text comp = Text.Serialization.fromJson(jsonComp, p.getWorld().getRegistryManager());
-                    p.sendMessage(comp, false);
+                    final MutableComponent comp = FabricMessageUtils.componentFromJson(jsonComp, p.level().registryAccess());
+                    p.sendSystemMessage(comp);
                     if (ping.getKey()) {
-                        if (LinkManager.isPlayerLinked(p.getUuid())&&LinkManager.getLink(null, p.getUuid()).settings.pingSound) {
-                            p.networkHandler.sendPacket(new PlaySoundS2CPacket(SoundEvents.BLOCK_NOTE_BLOCK_PLING, SoundCategory.MASTER, p.getPos().x,p.getPos().y,p.getPos().z, 1, 1, server.getOverworld().getSeed()));
+                        if (LinkManager.isPlayerLinked(p.getUUID())&&LinkManager.getLink(null, p.getUUID()).settings.pingSound) {
+                            p.connection.send(new ClientboundSoundPacket(SoundEvents.NOTE_BLOCK_PLING, SoundSource.MASTER, p.position().x, p.position().y, p.position().z, 1, 1, 0L));
                         }
                     }
                 }
             }
             //Send to server console too
             final String jsonComp = GsonComponentSerializer.gson().serialize(msg).replace("\\\\n", "\n");
-            final Text comp = Text.Serialization.fromJson(jsonComp, BuiltinRegistries.createWrapperLookup());
-            server.sendMessage(comp);
+            final MutableComponent comp = FabricMessageUtils.componentFromJson(jsonComp, server.registryAccess());
+            server.sendSystemMessage(comp);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -89,11 +88,11 @@ public class FabricServerInterface implements McServerInterface{
 
     @Override
     public void sendIngameReaction(Member member, RestAction<Message> retrieveMessage, UUID targetUUID, EmojiUnion reactionEmote) {
-        final List<ServerPlayerEntity> l = server.getPlayerManager().getPlayerList();
-        for (final ServerPlayerEntity p : l) {
+        final List<ServerPlayer> l = server.getPlayerList().getPlayers();
+        for (final ServerPlayer p : l) {
             if (!playerHasPermissions(p, MinecraftPermission.READ_MESSAGES, MinecraftPermission.USER))
                 return;
-            if (p.getUuid().equals(targetUUID) && !DiscordIntegration.INSTANCE.ignoringPlayers.contains(p.getUuid()) && (LinkManager.isPlayerLinked(p.getUuid())&&!LinkManager.getLink(null, p.getUuid()).settings.ignoreDiscordChatIngame && !LinkManager.getLink(null, p.getUuid()).settings.ignoreReactions)) {
+            if (p.getUUID().equals(targetUUID) && !DiscordIntegration.INSTANCE.ignoringPlayers.contains(p.getUUID()) && (LinkManager.isPlayerLinked(p.getUUID())&&!LinkManager.getLink(null, p.getUUID()).settings.ignoreDiscordChatIngame && !LinkManager.getLink(null, p.getUUID()).settings.ignoreReactions)) {
 
                 final String emote = reactionEmote.getType() == Emoji.Type.UNICODE ? EmojiParser.parseToAliases(reactionEmote.getName()) : ":" + reactionEmote.getName() + ":";
 
@@ -120,11 +119,11 @@ public class FabricServerInterface implements McServerInterface{
             }
         }
     }
-    private void sendReactionMCMessage(ServerPlayerEntity target, Component msgComp) {
+    private void sendReactionMCMessage(ServerPlayer target, Component msgComp) {
         final String jsonComp = GsonComponentSerializer.gson().serialize(msgComp).replace("\\\\n", "\n");
         try {
-            final Text comp = Text.Serialization.fromJson(jsonComp,target.getWorld().getRegistryManager());
-            target.sendMessage(comp, false);
+            final MutableComponent comp = FabricMessageUtils.componentFromJson(jsonComp, target.level().registryAccess());
+            target.sendSystemMessage(comp);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -133,41 +132,47 @@ public class FabricServerInterface implements McServerInterface{
     public void runMcCommand(String cmd, CompletableFuture<InteractionHook> cmdMsg, User user) {
         final DCCommandSender s = new DCCommandSender(cmdMsg, user, server);
             try {
-                server.getCommandManager().getDispatcher().execute(cmd.trim(), s);
+                server.getCommands().getDispatcher().execute(cmd.trim(), s);
             } catch (CommandSyntaxException e) {
-                s.sendError(Text.of(e.getMessage()));
+                s.sendFailure(net.minecraft.network.chat.Component.literal(e.getMessage()));
             }
     }
 
     @Override
     public HashMap<UUID, String> getPlayers() {
         final HashMap<UUID, String> players = new HashMap<>();
-        for (final ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
-            players.put(p.getUuid(), p.getDisplayName().getString().isEmpty() ? p.getName().getString() : p.getDisplayName().getString());
+        for (final ServerPlayer p : server.getPlayerList().getPlayers()) {
+            players.put(p.getUUID(), p.getDisplayName().getString().isEmpty() ? p.getName().getString() : p.getDisplayName().getString());
         }
         return players;
     }
 
     @Override
     public void sendIngameMessage(String msg, UUID player) {
-        final ServerPlayerEntity p = server.getPlayerManager().getPlayer(player);
+        final ServerPlayer p = server.getPlayerList().getPlayer(player);
         if (p != null)
-            p.sendMessage( Text.of(msg));
+            p.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));
     }
 
     @Override
     public boolean isOnlineMode() {
-        return Configuration.instance().bungee.isBehindBungee || server.isOnlineMode();
+        return Configuration.instance().bungee.isBehindBungee || server.usesAuthentication();
     }
 
     @Override
     public String getNameFromUUID(UUID uuid) {
-        return server.getSessionService().fetchProfile(uuid,false).profile().getName();
+        return server.services().sessionService().fetchProfile(uuid,false).profile().name();
     }
 
     @Override
     public String getLoaderName() {
         return "Fabric";
+    }
+
+    @Override
+    public boolean isPlayerVanish(UUID uuid) {
+        // No vanish-mod integration on Fabric; players are never treated as vanished.
+        return false;
     }
 
     @Override
@@ -188,14 +193,14 @@ public class FabricServerInterface implements McServerInterface{
     public String runMCCommand(String cmd) {
         final DCCommandSender s = new DCCommandSender(server);
         try {
-            server.getCommandManager().getDispatcher().execute(cmd.trim(), s);
+            server.getCommands().getDispatcher().execute(cmd.trim(), s);
             return s.message.toString();
         } catch (CommandSyntaxException e) {
             return e.getMessage();
         }
     }
 
-    public boolean playerHasPermissions(PlayerEntity player, String... permissions) {
+    public boolean playerHasPermissions(Player player, String... permissions) {
         for (String permission : permissions) {
             for (MinecraftPermission value : MinecraftPermission.values()) {
                 if(value.getAsString().equals(permission)){
@@ -209,7 +214,7 @@ public class FabricServerInterface implements McServerInterface{
     }
 
 
-    public boolean playerHasPermissions(PlayerEntity player, MinecraftPermission... permissions) {
+    public boolean playerHasPermissions(Player player, MinecraftPermission... permissions) {
         final String[] permissionStrings = new String[permissions.length];
         for (int i = 0; i < permissions.length; i++) {
             permissionStrings[i] = permissions[i].getAsString();

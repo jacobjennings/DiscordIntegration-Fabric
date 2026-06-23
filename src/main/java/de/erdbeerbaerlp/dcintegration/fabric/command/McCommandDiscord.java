@@ -9,27 +9,33 @@ import de.erdbeerbaerlp.dcintegration.common.minecraftCommands.McCommandRegistry
 import de.erdbeerbaerlp.dcintegration.common.storage.Configuration;
 import de.erdbeerbaerlp.dcintegration.common.util.MinecraftPermission;
 import de.erdbeerbaerlp.dcintegration.fabric.util.FabricServerInterface;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.*;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentUtils;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.Style;
+
+import java.net.URI;
 
 public class McCommandDiscord {
-    public McCommandDiscord(CommandDispatcher<ServerCommandSource> dispatcher) {
-        final LiteralArgumentBuilder<ServerCommandSource> l = CommandManager.literal("discord");
+    public McCommandDiscord(CommandDispatcher<CommandSourceStack> dispatcher) {
+        final LiteralArgumentBuilder<CommandSourceStack> l = Commands.literal("discord");
         if (Configuration.instance().ingameCommand.enabled) l.executes((ctx) -> {
-            ctx.getSource().sendFeedback(() -> Texts.setStyleIfAbsent(Text.literal(Configuration.instance().ingameCommand.message),
-                    Style.EMPTY.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.of(Configuration.instance().ingameCommand.hoverMessage)))
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configuration.instance().ingameCommand.inviteURL))), false);
+            ctx.getSource().sendSuccess(() -> ComponentUtils.mergeStyles(Component.literal(Configuration.instance().ingameCommand.message),
+                    Style.EMPTY.withHoverEvent(new HoverEvent.ShowText(Component.literal(Configuration.instance().ingameCommand.hoverMessage)))
+                            .withClickEvent(new ClickEvent.OpenUrl(URI.create(Configuration.instance().ingameCommand.inviteURL)))), false);
             return 0;
         }).requires((s) -> {
             try {
-                return ((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(s.getPlayerOrThrow(), MinecraftPermission.USER, MinecraftPermission.RUN_DISCORD_COMMAND);
+                return ((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(s.getPlayerOrException(), MinecraftPermission.USER, MinecraftPermission.RUN_DISCORD_COMMAND);
             }catch (CommandSyntaxException e) {
                 return true;
             }
         });
         for (final MCSubCommand cmd : McCommandRegistry.getCommands()) {
-            l.then(CommandManager.literal(cmd.getName()));
+            l.then(Commands.literal(cmd.getName()));
         }
         dispatcher.register(l);
     }

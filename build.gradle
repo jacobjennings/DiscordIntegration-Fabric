@@ -1,16 +1,25 @@
 plugins {
-    id "com.matthewprenger.cursegradle" version "1.4.0"
-    id 'fabric-loom' version '1.6+'
-    id "com.modrinth.minotaur" version "2.+"
+    // Minecraft 26.1+ is unobfuscated. Use the new NON-remapping loom plugin
+    // (net.fabricmc.fabric-loom) instead of the old 'fabric-loom'.
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+
+    // NOTE: Publishing plugins are commented out for the 26.1 port.
+    //  - com.matthewprenger.cursegradle 1.4.0 is NOT compatible with Gradle 9.x.
+    //  - Re-enable/replace these once a Gradle 9 compatible publishing setup is chosen.
+    //  - The modrinth/curseforge config blocks were removed for the same reason; the
+    //    old ones referenced the now-removed `remapJar` task.
+    // id "com.modrinth.minotaur" version "2.+"
 }
 
 version = project.mod_version
 group = project.maven_group
+
 configurations.all {
     resolutionStrategy {
         cacheChangingModulesFor 5, 'minutes'
     }
 }
+
 repositories {
     mavenCentral()
     maven {
@@ -18,9 +27,9 @@ repositories {
         url = "https://oss.sonatype.org/content/repositories/snapshots/"
     }
     maven { url 'https://jitpack.io' }
-    maven {
-        url 'https://maven.bymartrixx.me'
-    }
+    // NOTE: maven.bymartrixx.me was removed for the 26.1 port — its DNS no longer
+    // resolves and an unreachable repo aborts dependency resolution. placeholder-api
+    // is fetched from maven.nucleoid.xyz instead.
     maven { url "https://repo.erdbeerbaerlp.de/repository/maven-public/" }
     maven {
         name = "Modrinth"
@@ -31,29 +40,28 @@ repositories {
     }
     maven { url "https://maven.nucleoid.xyz/" }
 }
-tasks.register('release')
-tasks.release.group="publishing"
+
 dependencies {
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // No `mappings` line: Minecraft 26.1+ ships with official Mojang names already.
+    // No `modImplementation`: the non-remapping loom plugin does not remap mods,
+    // so plain `implementation` / `compileOnly` are used.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    modImplementation include("eu.pb4:placeholder-api:2.4.0-pre.1+1.20.5")
-    modCompileOnly "maven.modrinth:styled-chat:2.5.0+1.20.5"
+    include(implementation("eu.pb4:placeholder-api:${project.placeholder_api_version}"))
+    compileOnly "maven.modrinth:styled-chat:${project.styled_chat_version}"
 
     // =========  Common  =====================
-    modImplementation include('de.erdbeerbaerlp:dcintegration.common:3.0.7') {
+    include(implementation("de.erdbeerbaerlp:dcintegration.common:${project.dcintegration_common_version}") {
         changing = true
         transitive = false
-    }
-    include(modImplementation('me.lucko:fabric-permissions-api:0.2-SNAPSHOT'))
-
+    })
+    include(implementation("me.lucko:fabric-permissions-api:${project.permissions_api_version}"))
 }
-
 
 processResources {
     inputs.property "version", project.version
@@ -64,12 +72,9 @@ processResources {
     }
 }
 
-def targetJavaVersion = 17
+def targetJavaVersion = 25
 tasks.withType(JavaCompile).configureEach {
     // ensure that the encoding is set to UTF-8, no matter what the system default is
-    // this fixes some edge cases with special characters not displaying correctly
-    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-    // If Javadoc is generated, this must be specified in that task too.
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
         it.options.release = targetJavaVersion
@@ -81,59 +86,19 @@ java {
     if (JavaVersion.current() < javaVersion) {
         toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
     }
-    archivesBaseName = project.archives_base_name
     // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
     // if it is present.
     // If you remove this line, sources will not be generated.
 }
 
-remapJar{
-    archiveClassifier = project.minecraft_version
+base {
+    archivesName = project.archives_base_name
 }
 
+// No remapJar anymore (Minecraft is unobfuscated) -> configure the plain jar task.
 jar {
+    archiveClassifier = project.minecraft_version
     from("LICENSE") {
-        rename { "${it}_${project.archivesBaseName}" }
+        rename { "${it}_${project.archives_base_name}" }
     }
 }
-
-//Curseforge publishing
-curseforge {
-    if (project.hasProperty('curseforge.apikey')) { // $GRADLE_USER_HOME/gradle.properties
-        apiKey = project.getProperty("curseforge.apikey")
-        project {
-            id = '493679'
-            changelog = project.changelog
-            releaseType = project.releaseType.toLowerCase()
-            addGameVersion "${project.minecraft_version}"
-            mainArtifact(remapJar) {
-                displayName = "DiscordIntegration-Fabric $version (MC ${project.minecraft_version})"
-            }
-            relations {
-                requiredDependency 'fabric-api'
-                tool 'no-chat-reports'
-            }
-        }
-    }
-}
-modrinth{
-    if (project.hasProperty('modrinth.apikey')) { // $GRADLE_USER_HOME/gradle.properties
-        token = project.getProperty("modrinth.apikey") // Use an environment property!
-        projectId = 'rbJ7eS5V'
-        versionNumber = version+"-${project.minecraft_version}"
-        versionName = "DiscordIntegration-Fabric $version (MC ${project.minecraft_version})"
-        uploadFile = remapJar
-        changelog = project.changelog
-        gameVersions = ["${project.minecraft_version}"]
-        loaders = ['fabric']
-        dependencies {
-            required.project "fabric-api"
-            optional.project "no-chat-reports"
-        }
-
-        versionType = project.releaseType.toUpperCase()
-    }
-}
-tasks.release.dependsOn(tasks.build, tasks.curseforge,tasks.modrinth)
-
-

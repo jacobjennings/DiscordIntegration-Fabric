@@ -4,40 +4,41 @@ import de.erdbeerbaerlp.dcintegration.common.util.MessageUtils;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.CommandOutput;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.Vec2f;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.server.permissions.PermissionSet;
+import net.minecraft.world.phys.Vec2;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 
-public class DCCommandSender extends ServerCommandSource {
+public class DCCommandSender extends CommandSourceStack {
     private final CompletableFuture<InteractionHook> cmdMsg;
     private CompletableFuture<Message> cmdMessage;
     public final StringBuilder message = new StringBuilder();
 
     public DCCommandSender(CompletableFuture<InteractionHook> cmdMsg, User user, MinecraftServer server) {
-        super(CommandOutput.DUMMY, new Vec3d(0, 0, 0), new Vec2f(0, 0), server.getOverworld(), 4, user.getAsTag(), Text.of(user.getAsTag()), server, null);
+        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, user.getAsTag(), Component.literal(user.getAsTag()), server, null);
         this.cmdMsg = cmdMsg;
     }
 
     public DCCommandSender(MinecraftServer server) {
-        super(CommandOutput.DUMMY, new Vec3d(0, 0, 0), new Vec2f(0, 0), server.getOverworld(), 4, "DiscordIntegration", Text.of("Discord Integration"), server, null);
+        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, "DiscordIntegration", Component.literal("Discord Integration"), server, null);
         this.cmdMsg = null;
     }
 
 
-    private static String textComponentToDiscordMessage(Text component) {
+    private static String textComponentToDiscordMessage(Component component) {
         if (component == null) return "";
         return MessageUtils.convertMCToMarkdown(component.getString());
     }
 
     @Override
-    public void sendFeedback(Supplier<Text> feedbackSupplier, boolean broadcastToOps) {
+    public void sendSuccess(Supplier<Component> feedbackSupplier, boolean broadcastToOps) {
         message.append(textComponentToDiscordMessage(feedbackSupplier.get())).append("\n");
         if (cmdMsg != null)
             if (cmdMessage == null)
@@ -51,7 +52,7 @@ public class DCCommandSender extends ServerCommandSource {
     }
 
     @Override
-    public void sendError(Text message) {
-        this.sendFeedback(() -> message, false);
+    public void sendFailure(Component message) {
+        this.sendSuccess(() -> message, false);
     }
 }

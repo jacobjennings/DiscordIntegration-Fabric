@@ -22,11 +22,10 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.network.message.SignedMessage;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.PlayerChatMessage;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,21 +46,21 @@ public class DiscordIntegrationMod implements DedicatedServerModInitializer {
     public static final ArrayList<UUID> timeouts = new ArrayList<>();
     public static boolean stopped = false;
 
-    public static SignedMessage handleChatMessage(SignedMessage message, ServerPlayerEntity player) {
+    public static PlayerChatMessage handleChatMessage(PlayerChatMessage message, ServerPlayer player) {
         if (DiscordIntegration.INSTANCE == null) return message;
         if (!((FabricServerInterface)DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.SEMD_MESSAGES, MinecraftPermission.USER))
             return message;
-        if (LinkManager.isPlayerLinked(player.getUuid()) && LinkManager.getLink(null, player.getUuid()).settings.hideFromDiscord) {
+        if (LinkManager.isPlayerLinked(player.getUUID()) && LinkManager.getLink(null, player.getUUID()).settings.hideFromDiscord) {
             return message;
         }
 
-        final SignedMessage finalMessage = message;
-        final String text = MessageUtils.escapeMarkdown(message.getContent().getString());
-        final MessageEmbed embed = FabricMessageUtils.genItemStackEmbedIfAvailable(message.getContent(), player.getWorld());
+        final PlayerChatMessage finalMessage = message;
+        final String text = MessageUtils.escapeMarkdown(message.decoratedContent().getString());
+        final MessageEmbed embed = FabricMessageUtils.genItemStackEmbedIfAvailable(message.decoratedContent(), player.level());
         if (DiscordIntegration.INSTANCE != null) {
             if (DiscordIntegration.INSTANCE.callEvent((e) -> {
                 if (e instanceof FabricDiscordEventHandler) {
-                    return ((FabricDiscordEventHandler) e).onMcChatMessage(finalMessage.getContent(), player);
+                    return ((FabricDiscordEventHandler) e).onMcChatMessage(finalMessage.decoratedContent(), player);
                 }
                 return false;
             })) {
@@ -71,41 +70,41 @@ public class DiscordIntegrationMod implements DedicatedServerModInitializer {
             if (channel == null) {
                 return message;
             }
-            final String json = Text.Serialization.toJsonString(message.getContent(), player.getWorld().getRegistryManager());
+            final String json = FabricMessageUtils.componentToJson(message.decoratedContent(), player.level().registryAccess());
 
             final Component comp = GsonComponentSerializer.gson().deserialize(json);
-            if(INSTANCE.callEvent((e)->e.onMinecraftMessage(comp, player.getUuid()))){
+            if(INSTANCE.callEvent((e)->e.onMinecraftMessage(comp, player.getUUID()))){
                 return message;
             }
             if (!Localization.instance().discordChatMessage.isBlank())
                 if (Configuration.instance().embedMode.enabled && Configuration.instance().embedMode.chatMessages.asEmbed) {
-                    final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", player.getUuid().toString()).replace("%uuid_dashless%", player.getUuid().toString().replace("-", "")).replace("%name%", player.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
+                    final String avatarURL = Configuration.instance().webhook.playerAvatarURL.replace("%uuid%", player.getUUID().toString()).replace("%uuid_dashless%", player.getUUID().toString().replace("-", "")).replace("%name%", player.getName().getString()).replace("%randomUUID%", UUID.randomUUID().toString());
                     if (!Configuration.instance().embedMode.chatMessages.customJSON.isBlank()) {
                         final EmbedBuilder b = Configuration.instance().embedMode.chatMessages.toEmbedJson(Configuration.instance().embedMode.chatMessages.customJSON
-                                .replace("%uuid%", player.getUuid().toString())
-                                .replace("%uuid_dashless%", player.getUuid().toString().replace("-", ""))
+                                .replace("%uuid%", player.getUUID().toString())
+                                .replace("%uuid_dashless%", player.getUUID().toString().replace("-", ""))
                                 .replace("%name%", FabricMessageUtils.formatPlayerName(player))
                                 .replace("%randomUUID%", UUID.randomUUID().toString())
                                 .replace("%avatarURL%", avatarURL)
                                 .replace("%msg%", text)
-                                .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUuid()).getRGB())
+                                .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUUID()).getRGB())
                         );
                         DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.chatOutputChannelID));
                     } else {
                         EmbedBuilder b = Configuration.instance().embedMode.chatMessages.toEmbed();
                         if (Configuration.instance().embedMode.chatMessages.generateUniqueColors)
-                            b = b.setColor(TextColors.generateFromUUID(player.getUuid()));
+                            b = b.setColor(TextColors.generateFromUUID(player.getUUID()));
                         b = b.setAuthor(FabricMessageUtils.formatPlayerName(player), null, avatarURL)
                                 .setDescription(text);
                         DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.chatOutputChannelID));
                     }
                 } else
-                    DiscordIntegration.INSTANCE.sendMessage(FabricMessageUtils.formatPlayerName(player), player.getUuid().toString(), new DiscordMessage(embed, text, true), channel);
+                    DiscordIntegration.INSTANCE.sendMessage(FabricMessageUtils.formatPlayerName(player), player.getUUID().toString(), new DiscordMessage(embed, text, true), channel);
 
             if (!Configuration.instance().compatibility.disableParsingMentionsIngame) {
                 final String editedJson = GsonComponentSerializer.gson().serialize(MessageUtils.mentionsToNames(comp, channel.getGuild()));
-                final MutableText txt = Text.Serialization.fromJson(editedJson,player.getWorld().getRegistryManager());
-                message = SignedMessage.ofUnsigned(txt.getString());
+                final MutableComponent txt = FabricMessageUtils.componentFromJson(editedJson, player.level().registryAccess());
+                message = PlayerChatMessage.unsigned(player.getUUID(), txt.getString());
             }
         }
         return message;
@@ -164,7 +163,7 @@ public class DiscordIntegrationMod implements DedicatedServerModInitializer {
             }
         } catch (InterruptedException | NullPointerException ignored) {
         }
-        new McCommandDiscord(minecraftServer.getCommandManager().getDispatcher());
+        new McCommandDiscord(minecraftServer.getCommands().getDispatcher());
     }
 
     private void serverStarted(MinecraftServer minecraftServer) {
