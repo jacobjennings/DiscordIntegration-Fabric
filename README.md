@@ -1,3 +1,10 @@
+> [!NOTE]
+> This is a personal fork created to experiment with Minecraft 26.1's move to
+> unobfuscated code (official Mojang mappings, the non-remapping Fabric Loom
+> toolchain, etc.). **It is not a production-ready fork** — it has only been
+> compile-verified, not tested in a running game, and some features may be
+> incomplete or broken. Use at your own risk.
+
 # Discord-Integration Fabric
 ![](http://cf.way2muchnoise.eu/full_493679_downloads.svg) ![Modrinth Downloads](https://img.shields.io/modrinth/dt/dcintegration?style=flat&logo=modrinth)
 
