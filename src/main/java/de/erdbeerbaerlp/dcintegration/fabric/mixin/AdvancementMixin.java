@@ -30,7 +30,11 @@ public class AdvancementMixin {
     @Shadow
     private ServerPlayer player;
 
-    @Inject(method = "award", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/PlayerAdvancements;unregisterListeners(Lnet/minecraft/advancements/AdvancementHolder;)V"))
+    // Anchor on the completion-only rewards grant (inside vanilla's
+    // "!wasDone && progress.isDone()" block) instead of unregisterListeners,
+    // which award() reaches on every granted criterion — injecting there sent
+    // one Discord message per criterion of multi-criteria advancements.
+    @Inject(method = "award", at = @At(value = "INVOKE", target = "Lnet/minecraft/advancements/AdvancementRewards;grant(Lnet/minecraft/server/level/ServerPlayer;)V"))
     public void advancement(AdvancementHolder advancementHolder, String criterionName, CallbackInfoReturnable<Boolean> cir) {
         if (DiscordIntegration.INSTANCE == null) return;
         final Advancement advancement = advancementHolder.value();
