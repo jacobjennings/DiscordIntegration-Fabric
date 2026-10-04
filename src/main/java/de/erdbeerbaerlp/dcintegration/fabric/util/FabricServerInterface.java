@@ -48,6 +48,10 @@ public class FabricServerInterface implements McServerInterface{
         this.server = minecraftServer;
     }
 
+    public MinecraftServer getServer() {
+        return server;
+    }
+
     @Override
     public int getMaxPlayers() {
         return server.getPlayerList().getMaxPlayers();

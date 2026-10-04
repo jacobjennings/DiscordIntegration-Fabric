@@ -22,12 +22,12 @@ public class DCCommandSender extends CommandSourceStack {
     public final StringBuilder message = new StringBuilder();
 
     public DCCommandSender(CompletableFuture<InteractionHook> cmdMsg, User user, MinecraftServer server) {
-        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, user.getAsTag(), Component.literal(user.getAsTag()), server, null);
+        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, Component.literal(user.getAsTag()), server);
         this.cmdMsg = cmdMsg;
     }
 
     public DCCommandSender(MinecraftServer server) {
-        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, "DiscordIntegration", Component.literal("Discord Integration"), server, null);
+        super(CommandSource.NULL, new Vec3(0, 0, 0), new Vec2(0, 0), server.overworld(), PermissionSet.ALL_PERMISSIONS, Component.literal("Discord Integration"), server);
         this.cmdMsg = null;
     }
 
