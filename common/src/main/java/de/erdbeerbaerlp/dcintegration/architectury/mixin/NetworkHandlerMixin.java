@@ -2,6 +2,7 @@ package de.erdbeerbaerlp.dcintegration.architectury.mixin;
 
 
 import de.erdbeerbaerlp.dcintegration.architectury.DiscordIntegrationMod;
+import de.erdbeerbaerlp.dcintegration.architectury.util.ForkChannels;
 import de.erdbeerbaerlp.dcintegration.architectury.util.MessageUtilsImpl;
 import de.erdbeerbaerlp.dcintegration.common.DiscordIntegration;
 import de.erdbeerbaerlp.dcintegration.common.storage.Configuration;
@@ -56,14 +57,14 @@ public class NetworkHandlerMixin {
                                 .replace("%avatarURL%", avatarURL)
                                 .replace("%playerColor%", "" + TextColors.generateFromUUID(player.getUUID()).getRGB())
                         );
-                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(ForkChannels.loginChannelID()));
                     } else {
                         final EmbedBuilder b = Configuration.instance().embedMode.playerLeaveMessages.toEmbed().setAuthor(MessageUtilsImpl.formatPlayerName(player), null, avatarURL)
                                 .setDescription(Localization.instance().playerLeave.replace("%player%", MessageUtilsImpl.formatPlayerName(player)));
-                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(ForkChannels.loginChannelID()));
                     }
                 } else
-                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerLeave.replace("%player%", MessageUtilsImpl.formatPlayerName(player)),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerLeave.replace("%player%", MessageUtilsImpl.formatPlayerName(player)),INSTANCE.getChannel(ForkChannels.loginChannelID()));
             }
         } else if (DiscordIntegration.INSTANCE != null && DiscordIntegrationMod.timeouts.contains(player.getUUID())) {
             if (!Localization.instance().playerTimeout.isBlank()) {
@@ -71,9 +72,9 @@ public class NetworkHandlerMixin {
                     final EmbedBuilder b = Configuration.instance().embedMode.playerLeaveMessages.toEmbed()
                             .setAuthor(MessageUtilsImpl.formatPlayerName(player), null, avatarURL)
                             .setDescription(Localization.instance().playerTimeout.replace("%player%", MessageUtilsImpl.formatPlayerName(player)));
-                    DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                    DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()),INSTANCE.getChannel(ForkChannels.loginChannelID()));
                 } else
-                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerTimeout.replace("%player%", MessageUtilsImpl.formatPlayerName(player)),INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerTimeout.replace("%player%", MessageUtilsImpl.formatPlayerName(player)),INSTANCE.getChannel(ForkChannels.loginChannelID()));
             }
             DiscordIntegrationMod.timeouts.remove(player.getUUID());
         }
