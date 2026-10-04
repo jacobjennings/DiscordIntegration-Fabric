@@ -3,6 +3,7 @@ package de.erdbeerbaerlp.dcintegration.architectury.mixin;
 import dcshadow.net.kyori.adventure.text.Component;
 import dcshadow.net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import de.erdbeerbaerlp.dcintegration.architectury.util.MessageUtilsImpl;
+import de.erdbeerbaerlp.dcintegration.architectury.util.ForkChannels;
 import de.erdbeerbaerlp.dcintegration.architectury.util.SerializeComponentUtils;
 import de.erdbeerbaerlp.dcintegration.common.DiscordIntegration;
 import de.erdbeerbaerlp.dcintegration.common.WorkThread;
@@ -16,7 +17,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
-import net.minecraft.data.registries.VanillaRegistries;
+import de.erdbeerbaerlp.dcintegration.architectury.DiscordIntegrationMod;
 import net.minecraft.network.Connection;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -48,7 +49,7 @@ public class PlayerManagerMixin {
         if (eventKick != null) {
             final String jsonComp = GsonComponentSerializer.gson().serialize(eventKick).replace("\\\\n", "\n");
             try {
-                final net.minecraft.network.chat.Component comp = SerializeComponentUtils.fromJson(jsonComp, VanillaRegistries.createLookup());
+                final net.minecraft.network.chat.Component comp = SerializeComponentUtils.fromJson(jsonComp, DiscordIntegrationMod.server.registryAccess());
                 cir.setReturnValue(comp);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -87,15 +88,15 @@ public class PlayerManagerMixin {
                                 .replace("%avatarURL%", avatarURL)
                                 .replace("%playerColor%", "" + TextColors.generateFromUUID(p.getUUID()).getRGB())
                         );
-                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()));
+                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()), INSTANCE.getChannel(ForkChannels.loginChannelID()));
                     } else {
                         final EmbedBuilder b = Configuration.instance().embedMode.playerJoinMessage.toEmbed();
                         b.setAuthor(MessageUtilsImpl.formatPlayerName(p), null, avatarURL)
                                 .setDescription(Localization.instance().playerJoin.replace("%player%", MessageUtilsImpl.formatPlayerName(p)));
-                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()), INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                        DiscordIntegration.INSTANCE.sendMessage(new DiscordMessage(b.build()), INSTANCE.getChannel(ForkChannels.loginChannelID()));
                     }
                 } else
-                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerJoin.replace("%player%", MessageUtilsImpl.formatPlayerName(p)), INSTANCE.getChannel(Configuration.instance().advanced.serverChannelID));
+                    DiscordIntegration.INSTANCE.sendMessage(Localization.instance().playerJoin.replace("%player%", MessageUtilsImpl.formatPlayerName(p)), INSTANCE.getChannel(ForkChannels.loginChannelID()));
             }
             // Fix link status (if user does not have role, give the role to the user, or vice versa)
             WorkThread.executeJob(() -> {

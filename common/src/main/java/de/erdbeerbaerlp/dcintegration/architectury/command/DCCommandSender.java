@@ -13,14 +13,38 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.concurrent.CompletableFuture;
 
 public class DCCommandSender implements CommandSource {
+    /**
+     * Plain text name used in logs, stats and ban records. Since Minecraft 26.3 the
+     * CommandSourceStack Component constructor derives it from the display component,
+     * so CommandSourceStackMixin swaps a split-names provider in for the default sender
+     * to keep the pre-26.3 text name.
+     */
+    public static final String DEFAULT_TEXT_NAME = "DiscordIntegration";
+    public static final Component DEFAULT_DISPLAY_NAME = Component.literal("Discord Integration");
+
     private final CompletableFuture<InteractionHook> cmdMsg;
     private final Component name;
+
+    public static CommandSourceStack.NamesProvider defaultNames(Component display) {
+        return new CommandSourceStack.NamesProvider() {
+            @Override
+            public Component displayName(Entity entity) {
+                return display;
+            }
+
+            @Override
+            public String textName(Entity entity) {
+                return DEFAULT_TEXT_NAME;
+            }
+        };
+    }
 
     private CompletableFuture<Message> cmdMessage;
     public final StringBuilder message = new StringBuilder();
@@ -53,7 +77,7 @@ public class DCCommandSender implements CommandSource {
 
     public DCCommandSender() {
         this.cmdMsg = null;
-        this.name = Component.literal("Discord Integration");
+        this.name = DEFAULT_DISPLAY_NAME;
     }
 
     private static String textComponentToDiscordMessage(Component component) {
@@ -94,10 +118,8 @@ public class DCCommandSender implements CommandSource {
                 Vec2.ZERO,
                 DiscordIntegrationMod.server.findRespawnDimension(),
                 LevelBasedPermissionSet.OWNER,
-                this.name.getString(),
                 this.name,
-                DiscordIntegrationMod.server,
-                null
+                DiscordIntegrationMod.server
         );
     }
 

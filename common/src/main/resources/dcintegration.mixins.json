@@ -10,6 +10,7 @@
     "PlayerManagerMixin",
     "ChatMixin",
     "CommandManagerMixin",
+    "CommandSourceStackMixin",
     "MixinMinecraftServer"
   ],
   "injectors": {
