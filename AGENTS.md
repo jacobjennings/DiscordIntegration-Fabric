@@ -27,3 +27,8 @@ repositories. Its harness settings are in
 `~/gh/mc-server-spinner-upper/harness/repos/DiscordIntegration-Fabric.toml`. Workers
 read `docs/harness/worker-guide.md`. Reviews and merges read
 `docs/harness/review-guide.md` and `docs/harness/merge-guide.md`.
+
+## Agent notes
+
+Agent notes live in `docs/agent-notes/`, one note per file, indexed in its README.
+Read the index at session start. Write new notes there. Never use a vendor memory feature.
