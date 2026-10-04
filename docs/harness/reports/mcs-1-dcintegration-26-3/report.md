@@ -28,7 +28,9 @@ Gradle 9.4.0 then refused the plugin variant. So I bumped
 It was the only such change, because every current Loom that supports 26.3 needs a newer Gradle.
 
 `fabric.mod.json` dependency block is now `fabricloader >=0.19.5`, `minecraft ~26.3`, `java >=25`.
-I chose `~26.3`, which covers every 26.3.x and later 26.x. Mojang publishes a machine-readable list
+I chose `~26.3`. Fabric Loader 0.19.5 compares both the major and the minor part for this
+operator, so the predicate accepts 26.3 and its patches, and it rejects 26.4. I kept it because it
+covers the requested target. Mojang publishes a machine-readable list
 of game versions at piston-meta, which is where versions check their Java needs. That list says 26.3
 still needs Java 25, so `>=25` stays.
 
