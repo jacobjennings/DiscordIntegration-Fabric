@@ -15,7 +15,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
-import net.minecraft.data.registries.VanillaRegistries;
+import de.erdbeerbaerlp.dcintegration.fabric.util.FabricServerInterface;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -49,7 +49,7 @@ public class PlayerManagerMixin {
         if (eventKick != null) {
             final String jsonComp = GsonComponentSerializer.gson().serialize(eventKick).replace("\\\\n", "\n");
             try {
-                final MutableComponent comp = FabricMessageUtils.componentFromJson(jsonComp, VanillaRegistries.createLookup());
+                final MutableComponent comp = FabricMessageUtils.componentFromJson(jsonComp, ((FabricServerInterface) INSTANCE.getServerInterface()).getServer().registryAccess());
                 cir.setReturnValue(comp);
             } catch (Exception e) {
                 e.printStackTrace();

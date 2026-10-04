@@ -15,7 +15,6 @@ import de.erdbeerbaerlp.dcintegration.fabric.util.FabricMessageUtils;
 import de.erdbeerbaerlp.dcintegration.fabric.util.FabricServerInterface;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
@@ -80,7 +79,7 @@ public class CommandManagerMixin {
                                     source.sendFailure(Component.literal(Localization.instance().commands.consoleOnly));
                                 } catch (CommandSyntaxException e) {
                                     final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, null));
-                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.registryAccess()), false);
                                 }
                                 break;
                             case PLAYER_ONLY:
@@ -108,19 +107,19 @@ public class CommandManagerMixin {
                                     final ServerPlayer player = source.getPlayerOrException();
                                     if (!mcSubCommand.needsOP() && ((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND, MinecraftPermission.USER)) {
                                         final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
-                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.registryAccess()), false);
                                     } else if (((FabricServerInterface) DiscordIntegration.INSTANCE.getServerInterface()).playerHasPermissions(player, MinecraftPermission.RUN_DISCORD_COMMAND_ADMIN)) {
                                         final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
-                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.registryAccess()), false);
                                     } else if (source.permissions() instanceof LevelBasedPermissionSet lps && lps.level() == PermissionLevel.OWNERS) {
                                         final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, player.getUUID()));
-                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                        source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.registryAccess()), false);
                                     } else {
                                         source.sendFailure(Component.literal(Localization.instance().commands.noPermission));
                                     }
                                 } catch (CommandSyntaxException e) {
                                     final String txt = GsonComponentSerializer.gson().serialize(mcSubCommand.execute(cmdArgs, null));
-                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, VanillaRegistries.createLookup()), false);
+                                    source.sendSuccess(() -> FabricMessageUtils.componentFromJson(txt, source.registryAccess()), false);
                                 }
                                 break;
                         }
